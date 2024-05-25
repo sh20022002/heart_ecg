@@ -3,3 +3,4 @@ mitbih_database
 archive
 __pycache__
 .vscode
+model.ipynb

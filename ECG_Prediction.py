@@ -10,16 +10,24 @@ from torch.utils.data import DataLoader
 
 def getData(name):
     # paths to the csv and anotation files
-    path = r'C:\Users\shmue\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Visual Studio Code\python\open_pojects\test_3.10\heart_ECG'
-    path_csv = path + r'\mitbih_database\{}.csv'.format(name)
-    path_anotation = path + r'\mitbih_database\{}annotations.txt'.format(name)
+    
+    path_csv = r'mitbih_database\{}.csv'.format(name)
+    path_anotation = r'mitbih_database\{}annotations.txt'.format(name)
     # colums of the csv and anotation files
-    cols = ['Time', 'Sample', 'Type', 'Sub', 'Chan', 'Num']
+    colmns = ['Time', 'Sample', 'Type', 'Sub', 'Chan', 'Num']
+    csv_columns = ['Sample', "MILI", 'V5']
+    column_types = {
+    'Sample': float,
+    'MLII': float,
+    'V5': int
+}
     # anomleis and their numaric value
     # anomlie = {'N': 0, 'L': -0.5, 'R': 0.5, 'A': -1, 'V':-1}
     # decarator function to run the functions that reads the data and louds it one epoch at a time 
-    csv_data = pd.read_csv(path_csv)
-    ann_data = pd.read_csv(path_anotation)
+    csv_data = pd.read_csv(path_csv, sep=r'\s*,\s*', names=csv_columns, header=0, encoding='ascii', engine='python')
+    # csv_data.drop(0, inplace=True)
+    ann_data = pd.read_csv(path_anotation, delimiter='\s+')
+    # ann_data = ann_data.reindex(cols)
     return ann_data, csv_data
 
 
@@ -30,7 +38,9 @@ def create_image_ecg(data, data_a, name):
     Ts = 1/fs
 
     labels = data_a['Type']
-    data['time'] = data['sample']*Ts
+    
+    data['Time'] = data['Sample']*Ts
+    
     plt.plot(data['time'], data['V5'])
 
     for i, label in enumerate(labels):
@@ -48,7 +58,8 @@ def image_plotly(data, data_a, name):
     # shows the ecg with the anomalies on the plot
     fs = 360
     Ts = 1/fs
-    data['time'] = data['sample']*Ts
+    data['Sample'] = pd.to_numeric(data['Sample'], errors='coerce')
+    data['time'] = data['Sample']*Ts
     data['V5'] = data['V5'] - 980
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data['time'], y=data['V5'], mode='lines', name='V5', line=dict(color='blue')))
@@ -59,8 +70,7 @@ def image_plotly(data, data_a, name):
 
 def main():
     ann, csv = getData("100")
-    # column_names = ann.columns
-    # print(column_names)
+    
     image_plotly(csv, ann, "100")
     
 
