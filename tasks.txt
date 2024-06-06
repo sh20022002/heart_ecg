@@ -1,0 +1,2 @@
+1 - fix reading csv and seting a uniform header 
+2 - see if reads annotations

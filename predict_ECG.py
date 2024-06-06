@@ -16,6 +16,7 @@ class ECGDataset(Dataset):
         
         for file_path in self.file_paths:
             df = pd.read_csv(file_path)
+            
             self.data.append(df[['sample', 'MLII', 'V5']].values)
 
         self.data = np.concatenate(self.data, axis=0)
