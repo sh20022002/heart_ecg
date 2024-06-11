@@ -15,7 +15,10 @@ class ECGDataset(Dataset):
         self.data = []
         
         for file_path in self.file_paths:
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, header=['sample', 'MLII', 'V5'])
+
+            print(df.head())
+            break
             
             self.data.append(df[['sample', 'MLII', 'V5']].values)
 
