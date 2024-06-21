@@ -11,14 +11,16 @@ from sklearn.model_selection import train_test_split
 
 class ECGDataset(Dataset):
     def __init__(self, directory):
-        self.file_paths = [os.path.join(directory, fname) for fname in os.listdir(directory) if fname.endswith('.csv')]
+        self.csv_file_paths = [os.path.join(directory, fname) for fname in os.listdir(directory)]
         self.data = []
         
+        
         for file_path in self.file_paths:
-            df = pd.read_csv(file_path, header=['sample', 'MLII', 'V5'])
+            df = pd.read_csv(file_path + '.csv', header=['sample', 'MLII', 'V5'])
+            df += pd.read_txt(file_path + '.txt', header=[])#
 
-            print(df.head())
-            break
+            # print(df.head())
+            # break
             
             self.data.append(df[['sample', 'MLII', 'V5']].values)
 
