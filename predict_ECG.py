@@ -5,23 +5,14 @@ from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import numpy as np
 import torch.optim as optim
-from sklearn.model_selection import train_test_split
-
-
 
 class ECGDataset(Dataset):
     def __init__(self, directory):
-        self.csv_file_paths = [os.path.join(directory, fname) for fname in os.listdir(directory)]
+        self.csv_file_paths = [os.path.join(directory, fname) for fname in os.listdir(directory) if fname.endswith('.csv')]
         self.data = []
         
-        
-        for file_path in self.file_paths:
-            df = pd.read_csv(file_path + '.csv', header=['sample', 'MLII', 'V5'])
-            df += pd.read_txt(file_path + '.txt', header=[])#
-
-            # print(df.head())
-            # break
-            
+        for file_path in self.csv_file_paths:
+            df = pd.read_csv(file_path)  # Assuming the CSV has no header by default; adjust if needed
             self.data.append(df[['sample', 'MLII', 'V5']].values)
 
         self.data = np.concatenate(self.data, axis=0)
@@ -31,9 +22,8 @@ class ECGDataset(Dataset):
     
     def __getitem__(self, idx):
         sample = torch.tensor(self.data[idx, 1:], dtype=torch.float32)  # Use 'MLII' and 'V5'
-        return sample
-
-
+        label = torch.tensor(self.data[idx, 0], dtype=torch.float32)  # Assuming 'sample' column as label
+        return sample, label
 
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
@@ -45,69 +35,43 @@ class LSTMModel(nn.Module):
         h0 = torch.zeros(num_layers, x.size(0), hidden_size).to(x.device)
         c0 = torch.zeros(num_layers, x.size(0), hidden_size).to(x.device)
         out, _ = self.lstm(x, (h0, c0))
-        out = self.fc(out[:, -1, :])
+        out = self.fc(out[:, -1, :])  # Select last time step
         return out
 
-
-# Load Data
+# Assuming paths and data are correct
 data_path = 'mitbih_database'
 dataset = ECGDataset(data_path)
-
-# Split Data
 train_size = int(0.8 * len(dataset))
 test_size = len(dataset) - train_size
 train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
-
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=32)
 
-# Hyperparameters
-input_size = 2  # 'MLII' and 'V5'
-hidden_size = 64
-num_layers = 2
-output_size = 1  # Assuming regression or binary classification task
-num_epochs = 10
-learning_rate = 0.001
-
-# Model, Loss Function, Optimizer
+# Model setup
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = LSTMModel(input_size, hidden_size, num_layers, output_size).to(device)
-criterion = nn.MSELoss()  # Change to appropriate loss function if necessary
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+model = LSTMModel(input_size=2, hidden_size=64, num_layers=2, output_size=1).to(device)
+criterion = nn.MSELoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# Training Loop
-for epoch in range(num_epochs):
+# Training loop
+for epoch in range(10):
     model.train()
-    for samples in train_loader:
-        samples = samples.to(device).unsqueeze(-1)  # Adding a dummy dimension for LSTM
-
-        # Forward pass
-        outputs = model(samples)
-        loss = criterion(outputs, samples[:, -1])  # Assuming last value is the target
-        
-        # Backward pass and optimization
+    for samples, labels in train_loader:
+        samples, labels = samples.to(device), labels.to(device).unsqueeze(1)  # Adjust dimensions
         optimizer.zero_grad()
+        outputs = model(samples.unsqueeze(1))  # Adjust input dimensions
+        loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
-    
-    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+    print(f'Epoch [{epoch+1}/10], Loss: {loss.item():.4f}')
 
-# Evaluate the Model
+# Model evaluation
 model.eval()
+total_loss = 0
 with torch.no_grad():
-    total_loss = 0
-    for samples in test_loader:
-        samples = samples.to(device).unsqueeze(-1)
-
-        outputs = model(samples)
-        loss = criterion(outputs, samples[:, -1])
+    for samples, labels in test_loader:
+        samples, labels = samples.to(device), labels.to(device).unsqueeze(1)
+        outputs = model(samples.unsqueeze(1))
+        loss = criterion(outputs, labels)
         total_loss += loss.item()
-    
     print(f'Test Loss: {total_loss / len(test_loader):.4f}')
-
-# Save the Model
-torch.save(model.state_dict(), 'ecg_lstm_model.pth')
-
-# Load the Model for Future Use
-model.load_state_dict(torch.load('ecg_lstm_model.pth'))
-model.eval()
