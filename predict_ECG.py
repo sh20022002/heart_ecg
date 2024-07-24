@@ -11,8 +11,9 @@ class ECGDataset(Dataset):
         self.csv_file_paths = [os.path.join(directory, fname) for fname in os.listdir(directory) if fname.endswith('.csv')]
         self.data = []
         
+        dcolmns = ['sample', 'MLII', 'V5']
         for file_path in self.csv_file_paths:
-            df = pd.read_csv(file_path)  # Assuming the CSV has no header by default; adjust if needed
+            df = pd.read_csv(file_path,header=0, names=dcolmns)  # Assuming the CSV has no header by default; adjust if needed
             self.data.append(df[['sample', 'MLII', 'V5']].values)
 
         self.data = np.concatenate(self.data, axis=0)
@@ -32,6 +33,8 @@ class LSTMModel(nn.Module):
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
+        num_layers = 2
+        hidden_size = 64
         h0 = torch.zeros(num_layers, x.size(0), hidden_size).to(x.device)
         c0 = torch.zeros(num_layers, x.size(0), hidden_size).to(x.device)
         out, _ = self.lstm(x, (h0, c0))
@@ -59,7 +62,7 @@ for epoch in range(10):
     for samples, labels in train_loader:
         samples, labels = samples.to(device), labels.to(device).unsqueeze(1)  # Adjust dimensions
         optimizer.zero_grad()
-        outputs = model(samples.unsqueeze(1))  # Adjust input dimensions
+        outputs = model(samples.unsqueeze(3))  # Adjust input dimensions
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
