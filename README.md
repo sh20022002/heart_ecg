@@ -1,85 +1,81 @@
-# ECG Anomaly Detection and Diagnosis Pipeline
+# Heart ECG Anomaly Detection Pipeline
 
-## 📌 Project Overview
-This project aims to develop a **deep learning pipeline** for detecting anomalies in ECG data and diagnosing potential heart conditions. The system consists of two major components:
+## Overview
+The **Heart ECG Anomaly Detection Pipeline** is a project aimed at detecting anomalies in ECG signals and images. The system is designed to process ECG signal data, train machine learning models for anomaly detection, and ultimately extend its capabilities to analyze ECG images. The end goal is to create a pipeline that allows users to upload an ECG image and receive a diagnostic anomaly report.
 
-1. **ECG Signal-Based Model:** A deep learning model trained on MIT-BIH ECG signals to classify heart rhythms.
-2. **ECG Image-Based Model:** A second model designed to process ECG images (uploaded photos) and detect anomalies.
-3. **Pipeline System:** A fully integrated product that allows users to **upload ECG images** or capture photos, which will then be analyzed for potential cardiac abnormalities.
+## Features
+- **ECG Signal Processing**: Uses the MIT-BIH dataset for ECG signal classification.
+- **Deep Learning Model**: Implements an LSTM-based neural network for anomaly detection.
+- **Image-based ECG Analysis (Future Work)**: The next phase will involve training a computer vision model to analyze ECG images.
+- **Pipeline Integration**: The final product will support image uploads and provide an anomaly diagnostic report.
 
-## 🚀 Key Features
-- **Pre-trained Model for ECG Signals**: A trained **LSTM model** capable of classifying ECG signals.
-- **ECG Image Processing**: Uses **image recognition techniques (CNN-based models)** to analyze ECG scans.
-- **Seamless Pipeline**: Accepts either signal data or images, processes them, and returns a diagnosis.
-- **Automatic Model Selection**: Determines whether the input is an ECG signal or an image and routes it accordingly.
-- **Optimized Training and Model Selection**: Automatically **saves only the best model** while discarding inferior ones.
-
-## 📂 Project Structure
+## Repository Structure
 ```
-├── data/                     # ECG signal and image datasets
-├── models/                   # Saved models
-│   ├── lstm_model.pth        # LSTM model for ECG signals
-│   ├── cnn_model.pth         # CNN model for ECG images
-├── src/
-│   ├── dataset.py            # ECGDataset class (data preprocessing)
-│   ├── train_signal.py       # Training script for ECG signal model
-│   ├── train_image.py        # Training script for ECG image model
-│   ├── inference.py          # Pipeline for ECG signal & image diagnosis
-│   ├── utils.py              # Utility functions (e.g., normalization, augmentation)
-├── notebooks/                # Jupyter notebooks for model exploration
-├── requirements.txt          # Python dependencies
-├── README.md                 # Project documentation (this file)
+heart-ecg/
+│── .gitignore
+│── README.md
+│── requirements.txt
+│── ECG_Data_head.txt
+│── heart_conditions_category.txt
+│── heart_terms.txt
+│── Ecg.ipynb
+│── ECG_Prediction.py
+│── mitbih_database/  # ECG data (CSV files & annotations)
+│── model/            # Saved model checkpoints
+│── ecg/              # Virtual environment
+│── __pycache__/
+│── .vscode/          # VS Code configurations
 ```
 
-## 🔧 Setup & Installation
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/your-repo/ecg-diagnosis.git
-   cd ecg-diagnosis
+## Dataset
+The dataset used for training is sourced from the **MIT-BIH Arrhythmia Database**. It consists of:
+- **ECG Signals**: Contained in CSV files within the `mitbih_database/` directory.
+- **Annotations**: Labels for each sample provided in corresponding `.txt` annotation files.
+
+## Installation
+To set up the environment, follow these steps:
+
+1. **Clone the Repository**
+   ```sh
+   git clone https://github.com/yourusername/heart-ecg.git
+   cd heart-ecg
    ```
 
-2. **Create a Virtual Environment & Install Dependencies:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # For Linux/Mac
-   venv\Scripts\activate     # For Windows
+2. **Create and Activate a Virtual Environment**
+   ```sh
+   python -m venv ecg
+   source ecg/bin/activate  # On MacOS/Linux
+   ecg\Scripts\activate     # On Windows
+   ```
+
+3. **Install Dependencies**
+   ```sh
    pip install -r requirements.txt
    ```
 
-3. **Download & Prepare Data:**
-   - Place **ECG signal CSVs** in `data/signals/`
-   - Place **ECG images** in `data/images/`
-
-## 🏋️ Training the Models
-### **1. Train the ECG Signal Model (LSTM)**
-```bash
-python src/train_signal.py --epochs 50 --batch_size 32 --lr 0.001
+## Model Training
+To train the ECG classification model, run:
+```sh
+python ECG_Prediction.py
 ```
+This script loads the dataset, trains the LSTM-based neural network, and saves the best-performing model.
 
-### **2. Train the ECG Image Model (CNN)**
-```bash
-python src/train_image.py --epochs 50 --batch_size 32 --lr 0.001
-```
+## Model Checkpointing
+The training script automatically saves the best-performing model checkpoint to the `model/` directory. The save function ensures that:
+- A new model is saved only if it achieves a higher accuracy than existing checkpoints.
+- Inferior models are deleted to optimize storage.
 
-## 📊 Model Evaluation
-After training, evaluate models using:
-```bash
-python src/evaluate.py --model models/lstm_model.pth --data test_signals
-python src/evaluate.py --model models/cnn_model.pth --data test_images
-```
+## Future Work
+- **Image Processing Integration**: Implementing a CNN-based model for ECG image analysis.
+- **Web API**: Developing an API for users to upload ECG images for automated diagnosis.
+- **User Interface**: Creating a frontend to interact with the anomaly detection system.
 
-## 📸 ECG Image & Signal Inference
-Run the pipeline for a **single image or signal file**:
-```bash
-python src/inference.py --input sample_ecg_image.png
-python src/inference.py --input sample_ecg_signal.csv
-```
+## Contributing
+If you'd like to contribute to this project, feel free to submit issues or pull requests on [GitHub](https://github.com/yourusername/heart-ecg).
 
-## 🚀 Future Plans
-- ✅ Deploy as a web API
-- ✅ Implement **real-time ECG monitoring**
-- ✅ Extend model capabilities for **multi-class classification**
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📬 Contact & Contributions
-If you have any ideas or would like to contribute, feel free to submit a pull request or contact me via **[your email/github]**.
+---
+🚀 **Heart ECG Anomaly Detection Pipeline** – Advancing ECG anomaly detection with deep learning!
 
