@@ -28,10 +28,10 @@ heart-ecg/
 │── __pycache__/
 │── .vscode/          # VS Code configurations
 ```
-[loads csv of ecg resoults and qustioner](\screenshots\Screenshot_180018.png)
-[diagnosis](\screenshots\Screenshot_175351.png)
-[diagnosis](\screenshots\Screenshot_175918.png)
-[plot ecg](\screenshots\Screenshot_180018.png)
+![loads csv of ecg resoults and qustioner](screenshots\Screenshot_180018.png)
+![diagnosis](screenshots\Screenshot_175351.png)
+![diagnosis](screenshots\Screenshot_175918.png)
+![plot ecg](screenshots\Screenshot_180018.png)
 
 ## Dataset
 The dataset used for training is sourced from the **MIT-BIH Arrhythmia Database**. It consists of:
