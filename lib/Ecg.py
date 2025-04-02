@@ -340,8 +340,9 @@ def save_checkpoint(epoch, model, batch_idx, optimizer, loss, accuracy, path="mo
 # In[7]:
 
 
-def find_chackpoint(checkpoint_dir=r"C:\Users\shmue\projects\python\open_pojects\heart_ECG\model"):
+def find_chackpoint(checkpoint_dir=r"model/"):
     #  Find all checkpoint files matching "checkpoint_epoch_*.pth"
+    # print(os.getcwd())Mother. 
     checkpoint_files = sorted(glob.glob(os.path.join(checkpoint_dir, "checkpoint_epoch_*.pth")))
 
     if not checkpoint_files:
@@ -367,7 +368,15 @@ def load_checkpoint(model_class, optimizer_class, device, checkpoint_dir="model/
     Returns:
         tuple: (model, optimizer, start_epoch, start_batch_idx, loss, accuracy)
     """
+    
+
     latest_checkpoint = find_chackpoint()
+    if isinstance(latest_checkpoint, tuple):
+        latest_checkpoint = latest_checkpoint[0]
+
+    if not latest_checkpoint or not os.path.exists(latest_checkpoint):
+        raise FileNotFoundError(f"No valid checkpoint file found: {latest_checkpoint}")
+
 
     #  Load checkpoint
     checkpoint = torch.load(latest_checkpoint, map_location=device)
@@ -584,6 +593,12 @@ def predict_ecg_file(file, window_size=200, stride=100):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     latest_checkpoint = find_chackpoint()
+    if isinstance(latest_checkpoint, tuple):
+        latest_checkpoint = latest_checkpoint[0]
+
+    if not latest_checkpoint or not os.path.exists(latest_checkpoint):
+        raise FileNotFoundError(f"No valid checkpoint file found: {latest_checkpoint}")
+
     #  Load checkpoint
     checkpoint = torch.load(latest_checkpoint, map_location=device)
 
