@@ -4,7 +4,7 @@
 The **Heart ECG Anomaly Detection Pipeline** is a project aimed at detecting anomalies in ECG signals and images. The system is designed to process ECG signal data, train machine learning models for anomaly detection, and ultimately extend its capabilities to analyze ECG images. The end goal is to create a pipeline that allows users to upload an ECG image and receive a diagnostic anomaly report.
 
 ## Features
-- **ECG Signal Processing**: Uses the MIT-BIH dataset for ECG signal classification.
+- **ECG Signal Processing**: Uses the MIT-BIH dataset for ECG 2 lead signal classification.
 - **Deep Learning Model**: Implements an LSTM-based neural network for anomaly detection.
 - **Image-based ECG Analysis (Future Work)**: The next phase will involve training a computer vision model to analyze ECG images.
 - **Pipeline Integration**: The final product will support image uploads and provide an anomaly diagnostic report.
@@ -18,14 +18,20 @@ heart-ecg/
 │── ECG_Data_head.txt
 │── heart_conditions_category.txt
 │── heart_terms.txt
-│── Ecg.ipynb
-│── ECG_Prediction.py
+│── Ecg.ipynb         # used for traning
+|--- Ecg.py           # the file used as api for model prediction
+│── ECG_Prediction.py # plots and diagnosis
+|-- q_app.py          # streamlit app for qustiner loads csv ecg resoult and shows diagnosis
 │── mitbih_database/  # ECG data (CSV files & annotations)
 │── model/            # Saved model checkpoints
 │── ecg/              # Virtual environment
 │── __pycache__/
 │── .vscode/          # VS Code configurations
 ```
+[loads csv of ecg resoults and qustioner](screenshots\Screenshot_180018.png)
+[diagnosis](screenshots\Screenshot_175351.png)
+[diagnosis](screenshots\Screenshot_175918.png)
+[plot ecg](screenshots\Screenshot_180018.png)
 
 ## Dataset
 The dataset used for training is sourced from the **MIT-BIH Arrhythmia Database**. It consists of:

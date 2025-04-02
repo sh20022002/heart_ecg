@@ -4,33 +4,56 @@ import plotly.express as px
 import plotly.graph_objects as go
 import torch
 import torch.nn as nn
-import nbimporter
 from Ecg import predict_ecg_file
 
 
 
-def getData(name):
-    # paths to the csv and anotation files
-    
-    path_csv = r'mitbih_database\{}.csv'.format(name)
-    path_anotation = r'mitbih_database\{}annotations.txt'.format(name)
-    # colums of the csv and anotation files
-    colmns = ['Time', 'Sample', 'Type', 'Sub', 'Chan', 'Num']
-    csv_columns = ['Sample', "MILI", 'V5']
-    column_types = {
-    'Sample': float,
-    'MLII': float,
-    'V5': int
-}
-    # anomleis and their numaric value
-    # anomlie = {'N': 0, 'L': -0.5, 'R': 0.5, 'A': -1, 'V':-1}
-    # decarator function to run the functions that reads the data and louds it one epoch at a time 
-    csv_data = pd.read_csv(path_csv, sep=r'\s*,\s*', names=csv_columns, header=0, encoding='ascii', engine='python')
-    # csv_data.drop(0, inplace=True)
-    ann_data = pd.read_csv(path_anotation, delimiter='\s+')
-    # ann_data = ann_data.reindex(cols)
-    return ann_data, csv_data
 
+import pandas as pd
+
+def getData(file):
+    """
+    Reads the ECG CSV file and returns a DataFrame.
+    This function cleans the column names by removing extra quotes and whitespace,
+    then renames the columns to a fixed set:
+      - First column is renamed to "Sample"
+      - Second column is renamed to "MLII"
+      - Third column is renamed to "V5"
+      
+    Parameters:
+    - file: A file path or file-like object containing the ECG CSV data.
+    
+    Returns:
+    - df: A DataFrame with standardized column names.
+    """
+    file.seek(0)  # Reset file pointer to the beginning
+    try:
+        df = pd.read_csv(file, engine='python')
+    except Exception as e:
+        print("Error reading file:", e)
+        raise
+
+    # Clean column names: remove extra quotes and whitespace.
+    df.columns = df.columns.str.replace("'", "", regex=False).str.strip()
+    print("Cleaned DataFrame columns:", df.columns)
+
+    # Rename columns according to a fixed mapping if there are exactly three columns.
+    if len(df.columns) == 3:
+        df.columns = ['Sample', 'MLII', 'V5']
+    else:
+        # Alternatively, rename only the first and last columns if your file structure varies.
+        new_names = list(df.columns)
+        if len(new_names) >= 1:
+            new_names[0] = "Sample"
+        if len(new_names) >= 3:
+            new_names[2] = "V5"
+        # You can set new_names for other columns as needed, e.g. second column to "MLII"
+        if len(new_names) >= 2:
+            new_names[1] = "MLII"
+        df.columns = new_names
+
+    print("Final DataFrame columns:", df.columns)
+    return df
 
 
 def create_image_ecg(data, data_a, name):
@@ -55,155 +78,291 @@ def create_image_ecg(data, data_a, name):
     plt.title(f'ECG_{name}')
     plt.show()
      
-def image_plotly(data, data_a, name):
-    # shows the ecg with the anomalies on the plot
-    fs = 360
-    Ts = 1/fs
-    data['Sample'] = pd.to_numeric(data['Sample'], errors='coerce')
-    data['time'] = data['Sample']*Ts
-    data['V5'] = data['V5'] - 980
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data['time'], y=data['V5'], mode='lines', name='V5', line=dict(color='blue')))
-    fig.update_layout(xaxis_title='time (ms)', yaxis_title='ecg')
-    fig.update_xaxes(rangeslider_visible=True)
-    fig.show()
 
-def diagnose_by_symptoms(symptoms, ecg_findings=None):
+
+def image_plotly(file):
     """
-    Diagnose potential cardiac conditions based on symptom inputs and optional ECG findings.
+    Create an interactive Plotly plot for ECG data with two leads: V5 and MLII.
+
+    Parameters:
+    - file: File path or file-like object containing the ECG CSV data.
+
+    Returns:
+    - fig: A Plotly figure object.
+    """
+    data = getData(file)
+    fs = 360
+    Ts = 1 / fs
+
+    # Ensure 'Sample' is numeric
+    data['Sample'] = pd.to_numeric(data['Sample'], errors='coerce')
     
+    # Compute time in milliseconds: (Sample * Ts) in seconds, then convert to ms
+    data['time'] = pd.to_timedelta(data['Sample'] * Ts, unit='s')
+
+    # Ensure ECG lead data are numeric
+    data['MLII'] = pd.to_numeric(data['MLII'] , errors='coerce')
+    data['V5'] = pd.to_numeric(data['V5'] ,errors='coerce')
+
+    # Determine initial 4-second window based on the minimum time value in the data.
+    start_time = data['time'].min()
+    if pd.isnull(start_time):
+        start_time = pd.Timedelta(seconds=0)
+    end_time = start_time + pd.Timedelta(seconds=4)
+
+    # Create Plotly figure
+    fig = go.Figure()
+
+    
+    
+    # Plot V5 lead in green
+    fig.add_trace(go.Scatter(x=data['time'], y=data['V5'], 
+                             mode='lines', name='V5', 
+                             line=dict(color='green')))
+    
+    # Plot MLII lead in red
+    fig.add_trace(go.Scatter(x=data['time'], y=data['MLII'], 
+                             mode='lines', name='MLII', 
+                             line=dict(color='red')))
+    
+    fig.update_layout(xaxis_title='Time (ms)', yaxis_title='ECG (mV)',
+                      title="ECG Plot")
+    fig.update_layout(
+        xaxis=dict(
+            title='Time (HH:MM:SS)',
+            range=[start_time, end_time],
+            fixedrange=True,
+            rangeslider=dict(visible=True)
+        ),
+        yaxis=dict(title='ECG (mV)'),
+        title="ECG Plot (4-second window)",
+    )
+    
+    return fig
+
+
+def diagnose_by_symptoms(symptoms, test_file):
+    """
+    Diagnose potential cardiac conditions based on symptom inputs and ECG findings,
+    and return the top 3 probable diagnoses with their probability scores,
+    recommended tests, and advice if testing is not available.
+
     Parameters:
     - symptoms (dict): Dictionary of symptoms with boolean or severity values.
       Expected keys: 'palpitations', 'chest_pain', 'dyspnea', 'syncope',
                      'fatigue', 'dizziness', 'edema'
-    - ecg_findings (dict): Optional dictionary containing ECG findings (e.g., 'LBBB', 'RBBB', 'PACs', 'PVCs').
-    
+    - test_file: Path to a file to obtain ECG findings (via predict_ecg_file)
+
     Returns:
-    - diagnosis (dict): Dictionary with probable diagnoses and tiered probabilities.
+    - result (list): List of top 3 diagnoses (dicts) with keys:
+         'diagnosis': Name of the condition,
+         'probability': Percentage probability,
+         'recommended_tests': Recommended further tests,
+         'advice_without_tests': Advice if tests are not available.
     """
-    diagnosis = {
-        "Primary": [],
-        "Secondary": [],
-        "Tertiary": []
+    # Assume predict_ecg_file is defined elsewhere
+    ecg_findings = predict_ecg_file(test_file)
+
+    # Initialize scores for each potential diagnosis
+    diagnosis_scores = {
+        "Premature Atrial/Ventricular Beats": 0,
+        "Paroxysmal Atrial Fibrillation (AF)": 0,
+        "Supraventricular Tachycardia (SVT)": 0,
+        "Coronary Artery Disease (Ischemia)": 0,
+        "Acute Myocardial Infarction (AMI)": 0,
+        "Pericarditis or Other Nonischemic Causes": 0,
+        "Heart Failure / Cardiomyopathy": 0,
+        "Ischemic Heart Disease": 0,
+        "Pulmonary Causes (e.g., COPD, Pulmonary Embolism)": 0,
+        "Arrhythmia-related Syncope": 0,
+        "Bradyarrhythmia": 0,
+        "Orthostatic Hypotension / Vasovagal Episodes": 0,
+        "Non-Cardiac Causes (e.g., Anemia, Thyroid Dysfunction)": 0,
+        "Arrhythmias (e.g., VT, Severe Bradycardia)": 0,
+        "Conduction Abnormalities (e.g., LBBB, RBBB)": 0,
+        "Medication Effects / Dehydration": 0,
+        "Right-Sided Heart Failure": 0,
+        "Renal Dysfunction": 0,
+        "Venous Insufficiency": 0,
+        "Underlying Structural Heart Disease (LBBB)": 0,
+        "Possible Conduction Delay (RBBB)": 0,
+        "High Atrial Ectopy - Increased AF Risk": 0,
+        "High Ventricular Ectopy - Risk of PVC-induced Cardiomyopathy": 0,
+    }
+
+    # Mapping for test recommendations and advice for each diagnosis
+    diagnosis_advice = {
+        "Premature Atrial/Ventricular Beats": {
+            "tests": "Holter monitor, standard ECG",
+            "advice": "Often benign; monitor if symptoms worsen."
+        },
+        "Paroxysmal Atrial Fibrillation (AF)": {
+            "tests": "Extended Holter monitoring or event recorder, Echocardiogram",
+            "advice": "Evaluate atrial size and consider anticoagulation if AF is confirmed."
+        },
+        "Supraventricular Tachycardia (SVT)": {
+            "tests": "ECG during episodes, electrophysiological study",
+            "advice": "Medication or ablation may be needed if episodes are frequent."
+        },
+        "Coronary Artery Disease (Ischemia)": {
+            "tests": "Stress test, Coronary CT or angiography",
+            "advice": "Manage risk factors; initial treatment may be conservative if tests aren’t available."
+        },
+        "Acute Myocardial Infarction (AMI)": {
+            "tests": "Cardiac enzymes, urgent ECG, coronary angiography",
+            "advice": "Immediate treatment is necessary; if testing isn’t available, treat based on clinical suspicion."
+        },
+        "Pericarditis or Other Nonischemic Causes": {
+            "tests": "Echocardiogram, inflammatory markers, ECG",
+            "advice": "Often managed with anti-inflammatory medications if invasive testing isn’t possible."
+        },
+        "Heart Failure / Cardiomyopathy": {
+            "tests": "Echocardiogram, BNP levels, Cardiac MRI",
+            "advice": "Medical management and lifestyle modifications; imaging clarifies severity."
+        },
+        "Ischemic Heart Disease": {
+            "tests": "Stress test, Echocardiogram, coronary angiography",
+            "advice": "Risk factor management is essential; noninvasive tests can guide initial treatment."
+        },
+        "Pulmonary Causes (e.g., COPD, Pulmonary Embolism)": {
+            "tests": "Chest X-ray, CT pulmonary angiography, pulmonary function tests",
+            "advice": "Treat underlying lung disease; cardiac tests help if diagnosis remains unclear."
+        },
+        "Arrhythmia-related Syncope": {
+            "tests": "Holter monitor, event recorder, tilt-table test",
+            "advice": "Observation and medication adjustments may suffice if advanced tests aren’t available."
+        },
+        "Bradyarrhythmia": {
+            "tests": "ECG, Holter monitor",
+            "advice": "Consider pacemaker evaluation if symptoms are severe."
+        },
+        "Orthostatic Hypotension / Vasovagal Episodes": {
+            "tests": "Blood pressure monitoring, tilt-table test",
+            "advice": "Lifestyle changes and hydration often help."
+        },
+        "Non-Cardiac Causes (e.g., Anemia, Thyroid Dysfunction)": {
+            "tests": "Complete blood count, thyroid function tests",
+            "advice": "Medical management based on test results; symptoms may improve without invasive tests."
+        },
+        "Arrhythmias (e.g., VT, Severe Bradycardia)": {
+            "tests": "ECG, Holter monitor, electrophysiological study",
+            "advice": "Timely evaluation is crucial; if testing isn’t possible, manage risk factors and symptoms."
+        },
+        "Conduction Abnormalities (e.g., LBBB, RBBB)": {
+            "tests": "ECG, Echocardiogram",
+            "advice": "Often monitored over time; structural imaging can provide additional insights if needed."
+        },
+        "Medication Effects / Dehydration": {
+            "tests": "Medication review, electrolyte panel",
+            "advice": "Adjust medications and ensure proper hydration; invasive tests usually aren’t required."
+        },
+        "Right-Sided Heart Failure": {
+            "tests": "Echocardiogram, BNP levels",
+            "advice": "Diuretics and lifestyle changes are first-line; testing confirms the diagnosis."
+        },
+        "Renal Dysfunction": {
+            "tests": "Renal function tests (BUN, Creatinine)",
+            "advice": "Often managed conservatively unless severe."
+        },
+        "Venous Insufficiency": {
+            "tests": "Doppler ultrasound",
+            "advice": "Compression therapy and exercise are usually effective."
+        },
+        "Underlying Structural Heart Disease (LBBB)": {
+            "tests": "Echocardiogram, Cardiac MRI",
+            "advice": "These imaging tests assess structural damage; treatment depends on severity."
+        },
+        "Possible Conduction Delay (RBBB)": {
+            "tests": "ECG, possibly Echocardiogram",
+            "advice": "Often benign; further evaluation is warranted if symptoms persist."
+        },
+        "High Atrial Ectopy - Increased AF Risk": {
+            "tests": "Holter monitor, event recorder",
+            "advice": "Regular monitoring and risk factor modification are recommended."
+        },
+        "High Ventricular Ectopy - Risk of PVC-induced Cardiomyopathy": {
+            "tests": "Holter monitor, Echocardiogram",
+            "advice": "Evaluation of ventricular function is key; management can be conservative if tests are unavailable."
+        }
     }
     
-    # Example logic for each symptom:
-    # 1. Palpitations
+    # Score potential diagnoses based on symptoms
+    # (Weights here are illustrative; adjust based on clinical guidelines)
     if symptoms.get('palpitations', False):
-        # Primary: Benign ectopic beats (PACs/PVCs)
-        diagnosis["Primary"].append("Premature Atrial/Ventricular Beats")
-        # Secondary: Paroxysmal Atrial Fibrillation
-        diagnosis["Secondary"].append("Paroxysmal Atrial Fibrillation (AF)")
-        # Tertiary: Supraventricular Tachycardia (SVT)
-        diagnosis["Tertiary"].append("Supraventricular Tachycardia (SVT)")
-    
-    # 2. Chest Pain
+        diagnosis_scores["Premature Atrial/Ventricular Beats"] += 1.0
+        diagnosis_scores["Paroxysmal Atrial Fibrillation (AF)"] += 0.8
+        diagnosis_scores["Supraventricular Tachycardia (SVT)"] += 0.6
+
     if symptoms.get('chest_pain', False):
-        # Primary: Ischemia due to Coronary Artery Disease (CAD)
-        diagnosis["Primary"].append("Coronary Artery Disease (Ischemia)")
-        # Secondary: Acute Myocardial Infarction (especially if new LBBB on ECG)
-        if ecg_findings and ecg_findings.get('LBBB', False):
-            diagnosis["Secondary"].append("Acute Myocardial Infarction (AMI)")
-        else:
-            diagnosis["Secondary"].append("Acute Myocardial Infarction (if other risk factors present)")
-        # Tertiary: Pericarditis or nonischemic causes
-        diagnosis["Tertiary"].append("Pericarditis or Other Nonischemic Causes")
-    
-    # 3. Dyspnea (Shortness of Breath)
+        diagnosis_scores["Coronary Artery Disease (Ischemia)"] += 1.0
+        diagnosis_scores["Acute Myocardial Infarction (AMI)"] += 0.9
+        diagnosis_scores["Pericarditis or Other Nonischemic Causes"] += 0.5
+
     if symptoms.get('dyspnea', False):
-        # Primary: Heart Failure/Cardiomyopathy
-        diagnosis["Primary"].append("Heart Failure / Cardiomyopathy")
-        # Secondary: Ischemic Heart Disease
-        diagnosis["Secondary"].append("Ischemic Heart Disease")
-        # Tertiary: Pulmonary causes (e.g., COPD, pulmonary embolism)
-        diagnosis["Tertiary"].append("Pulmonary Causes (e.g., COPD, Pulmonary Embolism)")
-    
-    # 4. Syncope or Presyncope
+        diagnosis_scores["Heart Failure / Cardiomyopathy"] += 1.0
+        diagnosis_scores["Ischemic Heart Disease"] += 0.8
+        diagnosis_scores["Pulmonary Causes (e.g., COPD, Pulmonary Embolism)"] += 0.5
+
     if symptoms.get('syncope', False):
-        # Primary: Arrhythmia-related syncope (e.g., high-grade AV block, VT)
-        diagnosis["Primary"].append("Arrhythmia-related Syncope (e.g., Ventricular Tachycardia, High-Grade AV Block)")
-        # Secondary: Bradyarrhythmia
-        diagnosis["Secondary"].append("Bradyarrhythmia")
-        # Tertiary: Orthostatic Hypotension / Vasovagal episodes
-        diagnosis["Tertiary"].append("Orthostatic Hypotension / Vasovagal Episodes")
-    
-    # 5. Fatigue / Exercise Intolerance
+        diagnosis_scores["Arrhythmia-related Syncope"] += 1.0
+        diagnosis_scores["Bradyarrhythmia"] += 0.8
+        diagnosis_scores["Orthostatic Hypotension / Vasovagal Episodes"] += 0.5
+
     if symptoms.get('fatigue', False):
-        # Primary: Heart Failure
-        diagnosis["Primary"].append("Heart Failure")
-        # Secondary: Ischemic Heart Disease
-        diagnosis["Secondary"].append("Ischemic Heart Disease")
-        # Tertiary: Non-cardiac causes (e.g., Anemia, Thyroid Dysfunction)
-        diagnosis["Tertiary"].append("Non-Cardiac Causes (e.g., Anemia, Thyroid Dysfunction)")
-    
-    # 6. Dizziness or Lightheadedness
+        diagnosis_scores["Heart Failure / Cardiomyopathy"] += 1.0
+        diagnosis_scores["Ischemic Heart Disease"] += 0.8
+        diagnosis_scores["Non-Cardiac Causes (e.g., Anemia, Thyroid Dysfunction)"] += 0.5
+
     if symptoms.get('dizziness', False):
-        # Primary: Arrhythmias (including tachy- or bradyarrhythmias)
-        diagnosis["Primary"].append("Arrhythmias (e.g., Ventricular Tachycardia, Severe Bradycardia)")
-        # Secondary: Conduction abnormalities (e.g., intermittent LBBB/RBBB)
-        diagnosis["Secondary"].append("Conduction Abnormalities (e.g., LBBB, RBBB)")
-        # Tertiary: Medication effects or dehydration
-        diagnosis["Tertiary"].append("Medication Effects / Dehydration")
-    
-    # 7. Peripheral Edema
+        diagnosis_scores["Arrhythmias (e.g., VT, Severe Bradycardia)"] += 1.0
+        diagnosis_scores["Conduction Abnormalities (e.g., LBBB, RBBB)"] += 0.8
+        diagnosis_scores["Medication Effects / Dehydration"] += 0.5
+
     if symptoms.get('edema', False):
-        # Primary: Heart Failure (especially right-sided)
-        diagnosis["Primary"].append("Right-Sided Heart Failure")
-        # Secondary: Renal Dysfunction leading to fluid retention
-        diagnosis["Secondary"].append("Renal Dysfunction")
-        # Tertiary: Venous Insufficiency
-        diagnosis["Tertiary"].append("Venous Insufficiency")
-    
-    # Optionally, incorporate ECG findings into the logic:
+        diagnosis_scores["Right-Sided Heart Failure"] += 1.0
+        diagnosis_scores["Renal Dysfunction"] += 0.8
+        diagnosis_scores["Venous Insufficiency"] += 0.5
+
+    # Incorporate ECG findings into scoring:
     if ecg_findings:
-        if ecg_findings.get('LBBB', False):
-            diagnosis["Primary"].append("Underlying Structural Heart Disease (LBBB)")
-        if ecg_findings.get('RBBB', False):
-            # RBBB in isolation may be benign, but consider context:
-            diagnosis["Secondary"].append("Possible Conduction Delay (RBBB)")
+        if ecg_findings.get('LBBB', 0) > 0:
+            diagnosis_scores["Underlying Structural Heart Disease (LBBB)"] += 1.0
+        if ecg_findings.get('RBBB', 0) > 0:
+            diagnosis_scores["Possible Conduction Delay (RBBB)"] += 0.8
         if ecg_findings.get('PACs', 0) > 30:
-            diagnosis["Primary"].append("High Atrial Ectopy - Increased AF Risk")
-        if ecg_findings.get('PVCs', 0) > 10:  # assuming percentage or threshold value
-            diagnosis["Primary"].append("High Ventricular Ectopy - Risk of PVC-induced Cardiomyopathy")
-    
-    return diagnosis
+            diagnosis_scores["High Atrial Ectopy - Increased AF Risk"] += 1.0
+        if ecg_findings.get('PVCs', 0) > 10:
+            diagnosis_scores["High Ventricular Ectopy - Risk of PVC-induced Cardiomyopathy"] += 1.0
 
-# Example usage:
-if __name__ == "__main__":
-    # Sample symptom input (adjust booleans or values as needed)
-    symptoms = {
-        "palpitations": True,
-        "chest_pain": True,
-        "dyspnea": True,
-        "syncope": False,
-        "fatigue": True,
-        "dizziness": True,
-        "edema": False
-    }
-    
-    # Sample ECG findings: For instance, LBBB present, 35 PACs per hour, and 12% PVCs.
-    ecg_findings = {
-        "LBBB": True,
-        "RBBB": False,
-        "PACs": 35,
-        "PVCs": 12
-    }
-    
-    results = diagnose_by_symptoms(symptoms, ecg_findings)
-    print("Diagnostic Recommendations:")
-    for tier, diagnoses in results.items():
-        print(f"\n{tier} Diagnoses:")
-        for diag in diagnoses:
-            print(f" - {diag}")
+    # Calculate total score for normalization
+    total_score = sum(diagnosis_scores.values())
 
+    # Normalize scores to percentages if total_score > 0
+    diagnosis_probabilities = {}
+    if total_score > 0:
+        for diag, score in diagnosis_scores.items():
+            diagnosis_probabilities[diag] = (score / total_score) * 100
+    else:
+        # If no symptoms or ECG findings, assign zero probability
+        for diag in diagnosis_scores.keys():
+            diagnosis_probabilities[diag] = 0.0
 
-def main():
-    ann, csv = getData("100")
-    
-    image_plotly(csv, ann, "100")
-    
-    print(predict_ecg_file("100"))
+    # Sort diagnoses by probability, descending
+    sorted_diagnoses = sorted(diagnosis_probabilities.items(), key=lambda x: x[1], reverse=True)
 
+    # Select the top 3 diagnoses
+    top3 = sorted_diagnoses[:3]
 
-if __name__ == '__main__':
-    main()
+    # Build the result list with diagnosis details
+    result = []
+    for diag, prob in top3:
+        advice_info = diagnosis_advice.get(diag, {"tests": "N/A", "advice": "No advice available"})
+        result.append({
+            "diagnosis": diag,
+            "probability": round(prob, 2),
+            "recommended_tests": advice_info["tests"],
+            "advice_without_tests": advice_info["advice"]
+        })
+
+    return result
+
