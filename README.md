@@ -28,13 +28,13 @@ heart-ecg/
 │── __pycache__/
 │── .vscode/          # VS Code configurations
 ```
-## 1
+## 1 loads csv of ecg resoults and qustioner
 ![loads csv of ecg resoults and qustioner](screenshots/Screenshot_175351.png)
-## 2
+## 2 diagnosis
 ![diagnosis](screenshots/Screenshot_175902.png)
-## 3
+## 3 diagnosis
 ![diagnosis](screenshots/Screenshot_175918.png)
-## 4
+## 4 plot Ecg
 ![plot ecg](screenshots/Screenshot_180018.png)
 
 ## Dataset
